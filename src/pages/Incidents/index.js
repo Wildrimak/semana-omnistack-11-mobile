@@ -1,18 +1,51 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { View, FlatList, Image, Text, TouchableOpacity } from 'react-native';
 
+import api from './../../services/api';
+
 import logoImg from '../../assets/logo.png';
+
 import styles from './styles';
 
 export default function Incidents() {
 
+    const [incidents, setIncidents] = useState([]);
+    const [total, setTotal] = useState(0); //Fica atento ao tipo do dado que entra ai em useState
+    const [page, setPage] = useState(1);
+    const [loading, setLoading] = useState(false);
     const navigation = useNavigation();
 
-    function navigateToDetal(){
-        navigation.navigate('Detail');
+    function navigateToDetal(incident){
+        navigation.navigate('Detail', { incident });
     }
+    
+    async function loadIncidents(){
+
+        if(loading) {
+            return;
+        }
+
+        if(total > 0 && incidents.lenght === total){
+            return;
+        }
+
+        setLoading(true);
+
+        const response = await api.get('incidents', {
+            params: { page }
+        });
+        
+        setIncidents([...incidents, ...response.data]); //forma de anexar dois vetores
+        setTotal(response.headers['x-total-count']); //nome do header que a gente tinha salvo;
+        setPage(page + 1);
+        setLoading(false);
+    } 
+
+    useEffect(() => {
+        loadIncidents();
+    }, []); //Chama toda vez que algo dentro desse array mudar
 
     return(
         <View style={styles.container}>
@@ -20,7 +53,7 @@ export default function Incidents() {
             <View style={styles.header}>
                 <Image source={logoImg} />
                 <Text style={styles.headerText}>
-                    Total de <Text style={styles.headerTextBold}>0 casos </Text>
+                    Total de <Text style={styles.headerTextBold}>{total} casos </Text>
                 </Text>
             </View>
 
@@ -28,25 +61,32 @@ export default function Incidents() {
             <Text style={styles.description}>Escolha um dos casos abaixo e salve o dia</Text>
 
             <FlatList 
-                data={[1, 2, 3, 4, 5]}
+                data={incidents}
                 style={styles.incidentList}
-                keyExtractor={incident => String(incident)}
+                keyExtractor={incident => String(incident.id)}
                 showsVerticalScrollIndicator={false}
-                renderItem={() => (
+                onEndReached={loadIncidents}
+                onEndReachedThreshold={0.2} //Quantos porcento perto do fim da lista até carregar novos itens
+                renderItem={({ item: incident }) => (
                     <View style={styles.incident}>
                     
                         <Text style={styles.incidentProperty}>ONG:</Text>
-                        <Text style={styles.incidentValue}>APAD</Text>
+                        <Text style={styles.incidentValue}>{incident.name}</Text>
                         
                         <Text style={styles.incidentProperty}>CASO:</Text>
-                        <Text style={styles.incidentValue}>Cadelinha atropelada</Text>
+                        <Text style={styles.incidentValue}>{incident.title}</Text>
                         
                         <Text style={styles.incidentProperty}>VALOR:</Text>
-                        <Text style={styles.incidentValue}>R$ 120,00</Text>
+                        <Text style={styles.incidentValue}>
+                            {Intl.NumberFormat('pt-BR', { 
+                                style: 'currency', 
+                                currency: 'BRL' 
+                            }).format(incident.value)}
+                        </Text>
 
                         <TouchableOpacity
                             style={styles.detailsButton}
-                            onPress={navigateToDetal}
+                            onPress={() => navigateToDetal(incident)} //Sempre que precisar passar parametros transforme em arrow function
                         >
                             <Text style={styles.detailsButtonText}>Ver mais detalhes</Text>
                             <Feather name="arrow-right" size={16} color="#E02041" />    
